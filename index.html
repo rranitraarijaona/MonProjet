@@ -25,7 +25,6 @@
       </div>
       <div class="erreur" id="l-erreur"></div>
       <button class="b entrer" id="l-btn" onclick="seConnecter()">ENTRER</button>
-      <div class="etat" id="l-etat"></div>
     </div>
   </div>
 </div>
@@ -41,8 +40,9 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Listes</button>
   <button id="btn-form" onclick="nouveau()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Nouvel enregistrement</button>
+    
   <div id="btn-divisions"></div>
-  <div class="badge-mode" id="badge-mode"></div>
+
   <button class="quitter" onclick="quitter()">QUITTER</button>
 </aside>
 
@@ -58,6 +58,10 @@
       <input type="text" id="recherche" placeholder="Tapez un IM, un nom, un N° d'arrivée, une demande, une division..." oninput="afficherListe()">
       <div class="actions">
         <button class="b danger" id="btn-suppr-sel" onclick="supprimerSelection()" disabled>Supprimer la sélection (0)</button>
+        <button class="b sec" onclick="sauvegarder()" title="Enregistre toutes les données dans un fichier sur cet ordinateur">💾 Sauvegarder</button>
+        <button class="b sec" onclick="document.getElementById('fichier-restauration').click()" title="Recharge les données depuis un fichier de sauvegarde">📂 Restaurer</button>
+        <input type="file" id="fichier-restauration" accept=".json,application/json" hidden onchange="restaurer(this.files[0])">
+        <span class="info-sauv" id="info-sauvegarde"></span>
       </div>
     </div>
 
@@ -151,6 +155,7 @@
     <div class="barre no-print">
       <button class="b ok" onclick="window.print()">🖨 Imprimer</button>
       <button class="b sec" onclick="afficher('liste')">← Retour</button>
+      <span class="info-sauv">Pour l'enregistrer sur l'ordinateur : Imprimer, puis Destination « Enregistrer au format PDF »</span>
     </div>
     <div class="feuille" id="feuille"></div>
   </section>

@@ -1,17 +1,7 @@
 /* ============ 0. RÉGLAGES ============ */
 
-/* ---- Mot de passe (mode local, sans stockage en ligne) ---- */
+/* ---- Mot de passe de l'application ---- */
 const LOGIN_MDP = "Geco@2026";
-
-/* ---- STOCKAGE PARTAGÉ (Firebase) : pour retrouver les mêmes données sur tous les appareils ----
-   Remplissez ces 4 champs avec la configuration de votre projet Firebase.
-   Tant que apiKey est vide, l'application fonctionne en mode local (données sur cet appareil). */
-
-/* Compte unique (jamais saisi) : le mot de passe de ce compte est le mot de passe de l'application. */
-const FIREBASE_EMAIL = "geco@srsp.app";
-
-const CLOUD = false;
-
 
 /* ============ 1. LES DONNÉES DES LISTES ============ */
 
@@ -68,7 +58,7 @@ const RESPONSABLES = [
 /* ============ 2. ÉTAT ET STOCKAGE ============ */
 /* Un bordereau (BE) = { id, da, na, be, division, paraphe, resp, demandes: [ { id, demande, agents: [ {nom, im} ] } ] } */
 
-let bordereaux = [];          // rempli en local (localStorage) ou depuis le stockage partagé
+let bordereaux = [];          // enregistré dans le navigateur (localStorage)
 let demandesEnCours = [];     // demandes du bordereau en cours de saisie
 let agentsEnCours = [];       // agents de la demande en cours de saisie
 let idEnModification = null;
@@ -77,49 +67,21 @@ let divisionFiltre = null;    // null = tous les dossiers
 let selection = new Set();    // bordereaux cochés dans la liste (par id)
 let clesVisibles = [];        // bordereaux actuellement affichés dans la liste
 
-// Stockage partagé
-let auth = null, db = null, cloudPret = false;
-let desabonnements = [];
-let dernierCloud = null;      // dernier N° Arrivée utilisé (stockage partagé)
-let migrationVerifiee = false;
-
-if (!CLOUD) {
-  try { bordereaux = JSON.parse(localStorage.getItem("geco_bordereaux") || "[]").map(migrerParaphe); } catch (e) { bordereaux = []; }
-}
+try { bordereaux = JSON.parse(localStorage.getItem("geco_bordereaux") || "[]").map(migrerParaphe); } catch (e) { bordereaux = []; }
 
 function sauverLocal() {
   localStorage.setItem("geco_bordereaux", JSON.stringify(bordereaux));
 }
 
-function erreurCloud(e) {
-  alert("Erreur d'enregistrement en ligne : " + (e && e.message ? e.message : e));
-}
-
-function sauverBordereau(b) {
-  if (!CLOUD) { sauverLocal(); return; }
-  db.collection("bordereaux").doc(String(b.id)).set(b).catch(erreurCloud);
-}
-
-function effacerBordereaux(ids) {
-  if (!CLOUD) { sauverLocal(); return; }
-  for (let i = 0; i < ids.length; i += 400) {            // un lot = 500 opérations au maximum
-    const lot = db.batch();
-    ids.slice(i, i + 400).forEach(id => lot.delete(db.collection("bordereaux").doc(String(id))));
-    lot.commit().catch(erreurCloud);
-  }
-}
-
-function sauverCompteur(n) {
-  if (!CLOUD) { localStorage.setItem("geco_dernier_na", String(n)); return; }
-  dernierCloud = n;
-  db.collection("meta").doc("compteur").set({ dernier: n }).catch(erreurCloud);
+function sauverCompteur(n) {         // mémorise le dernier N° Arrivée utilisé
+  localStorage.setItem("geco_dernier_na", String(n));
 }
 
 /* ----- N° Arrivée automatique : 0001 à 9999, puis retour à 0001 ----- */
 
 function dernierNumero() {
-  const memo = CLOUD ? dernierCloud : parseInt(localStorage.getItem("geco_dernier_na"), 10);
-  if (typeof memo === "number" && !isNaN(memo)) return memo;
+  const memo = parseInt(localStorage.getItem("geco_dernier_na"), 10);
+  if (!isNaN(memo)) return memo;
   // Première utilisation : on repart du plus grand numéro déjà saisi
   let max = 0;
   bordereaux.forEach(b => {
@@ -159,12 +121,9 @@ function voirListe(division) {
 function quitter() {
   if (!confirm("Fermer l'application GeCo SRSP ?")) return;
   try { sessionStorage.removeItem("geco_session"); } catch (e) {}
-  const fin = () => {
-    window.close();   // certains navigateurs refusent de fermer l'onglet
-    document.body.innerHTML = "<div class='fin'><h2>Application fermée</h2><p>Vous pouvez fermer cet onglet.</p>" +
-      "<button class='b' onclick='location.reload()'>Rouvrir</button></div>";
-  };
-  if (CLOUD && auth) auth.signOut().then(fin, fin); else fin();
+  window.close();   // certains navigateurs refusent de fermer l'onglet
+  document.body.innerHTML = "<div class='fin'><h2>Application fermée</h2><p>Vous pouvez fermer cet onglet.</p>" +
+    "<button class='b' onclick='location.reload()'>Rouvrir</button></div>";
 }
 
 /* ============ 4. OUTILS ============ */
@@ -427,11 +386,11 @@ function enregistrer() {
   if (idEnModification !== null) {
     const i = bordereaux.findIndex(x => x.id === idEnModification);
     bordereaux[i] = { id: idEnModification, ...fiche };
-    sauverBordereau(bordereaux[i]);
+    sauverLocal();
   } else {
     const nouveauB = { id: Date.now(), ...fiche };
     bordereaux.push(nouveauB);
-    sauverBordereau(nouveauB);
+    sauverLocal();
     sauverCompteur(parseInt(na, 10));    // le numéro est consommé
   }
   alert("Enregistré !");
@@ -443,13 +402,13 @@ function enregistrer() {
 function majParaphe(bid, coche) {          // un paraphe par bordereau
   const b = bordereaux.find(x => x.id === bid);
   b.paraphe = coche;
-  sauverBordereau(b);
+  sauverLocal();
 }
 
 function majResp(bid, valeur) {
   const b = bordereaux.find(x => x.id === bid);
   b.resp = valeur;
-  sauverBordereau(b);
+  sauverLocal();
 }
 
 // Anciennes données : le paraphe était par demande, il est maintenant par bordereau
@@ -491,7 +450,7 @@ function supprimerSelection() {
   if (!confirm("Supprimer définitivement " + ids.size + " bordereau(x) sélectionné(s), avec toutes leurs demandes ?\nCette action est irréversible.")) return;
   bordereaux = bordereaux.filter(b => !ids.has(b.id));
   ids.forEach(id => selection.delete(id));
-  effacerBordereaux([...ids]);
+  sauverLocal();
   afficherListe();
 }
 
@@ -626,111 +585,75 @@ function ouvrirSession() {
   document.getElementById("l-mdp").value = "";
   document.getElementById("l-erreur").textContent = "";
   document.body.classList.add("connecte");
-  if (CLOUD) demarrerSynchro();
   afficher("liste");
 }
 
-function fermerSession() {
-  desabonnements.forEach(f => { try { f(); } catch (e) {} });
-  desabonnements = [];
-  migrationVerifiee = false;
-  if (CLOUD) bordereaux = [];
-  document.body.classList.remove("connecte");
-}
-
-async function seConnecter() {
+function seConnecter() {
   const mdp = document.getElementById("l-mdp").value;
   if (!mdp) { erreurLogin("Saisissez le mot de passe."); return; }
-
-  if (!CLOUD) {                                   // mode local
-    if (mdp === LOGIN_MDP) {
-      try { sessionStorage.setItem("geco_session", "ok"); } catch (e) {}
-      ouvrirSession();
-    } else {
-      erreurLogin("Mot de passe incorrect.");
-    }
-    return;
-  }
-
-  if (!cloudPret) { erreurLogin("Connexion au service en cours… réessayez dans un instant."); return; }
-  const bouton = document.getElementById("l-btn");
-  bouton.disabled = true;
-  try {
-    await auth.signInWithEmailAndPassword(FIREBASE_EMAIL, mdp);   // ouvrirSession() est appelée par onAuthStateChanged
-  } catch (e) {
-    const c = e && e.code ? e.code : "";
-    if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) erreurLogin("Mot de passe incorrect.");
-    else if (c === "auth/too-many-requests") erreurLogin("Trop d'essais. Patientez quelques minutes.");
-    else if (c === "auth/network-request-failed") erreurLogin("Pas de connexion Internet.");
-    else erreurLogin("Connexion impossible (" + (c || "erreur") + ").");
-  }
-  bouton.disabled = false;
-}
-
-/* ============ 12. STOCKAGE PARTAGÉ (Firebase) ============ */
-
-function chargerScript(src) {
-  return new Promise((ok, ko) => {
-    const s = document.createElement("script");
-    s.src = src; s.onload = ok; s.onerror = () => ko(new Error("Chargement impossible : " + src));
-    document.head.appendChild(s);
-  });
-}
-
-async function initCloud() {
-  etatLogin("Connexion au stockage partagé…");
-  try {
-    const base = "https://www.gstatic.com/firebasejs/10.12.2/";
-    await chargerScript(base + "firebase-app-compat.js");
-    await chargerScript(base + "firebase-auth-compat.js");
-    await chargerScript(base + "firebase-firestore-compat.js");
-    
-    try { db.enablePersistence({ synchronizeTabs: true }).catch(() => {}); } catch (e) {}
-    cloudPret = true;
-    etatLogin("● Stockage partagé prêt", "ok");
-    auth.onAuthStateChanged(user => { if (user) ouvrirSession(); else fermerSession(); });
-  } catch (e) {
-    etatLogin("● Service en ligne injoignable : vérifiez Internet puis rechargez la page.", "ko");
+  if (mdp === LOGIN_MDP) {
+    try { sessionStorage.setItem("geco_session", "ok"); } catch (e) {}
+    ouvrirSession();
+  } else {
+    erreurLogin("Mot de passe incorrect.");
   }
 }
 
-function demarrerSynchro() {
-  if (desabonnements.length) return;
-  const optionsMeta = { includeMetadataChanges: true };
+/* ============ 11b. SAUVEGARDE SUR LE DISQUE DE L'ORDINATEUR ============ */
 
-  desabonnements.push(db.collection("bordereaux").onSnapshot(optionsMeta, snap => {
-    bordereaux = snap.docs.map(d => migrerParaphe(d.data())).sort((a, b) => a.id - b.id);
-    if (!migrationVerifiee && !snap.metadata.fromCache) {     // réponse confirmée par le serveur
-      migrationVerifiee = true;
-      proposerMigration(snap.empty);
-    }
+function majInfoSauvegarde() {
+  let d = null;
+  try { d = localStorage.getItem("geco_derniere_sauvegarde"); } catch (e) {}
+  document.getElementById("info-sauvegarde").textContent =
+    d ? "Dernière sauvegarde : " + dateFr(d) : "Aucune sauvegarde faite sur ce navigateur";
+}
+
+// Enregistre tous les bordereaux dans un fichier .json (dossier Téléchargements)
+function sauvegarder() {
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const contenu = JSON.stringify({
+    application: "GeCo SRSP", date: aujourdhui, dernier: dernierNumero(), bordereaux: bordereaux
+  }, null, 2);
+  const lien = document.createElement("a");
+  lien.href = URL.createObjectURL(new Blob([contenu], { type: "application/json" }));
+  lien.download = "geco-sauvegarde-" + aujourdhui + ".json";
+  document.body.appendChild(lien);
+  lien.click();
+  lien.remove();
+  setTimeout(() => URL.revokeObjectURL(lien.href), 2000);
+  try { localStorage.setItem("geco_derniere_sauvegarde", aujourdhui); } catch (e) {}
+  majInfoSauvegarde();
+}
+
+function sauvegardeValide(liste) {
+  return Array.isArray(liste) && liste.every(b =>
+    b && typeof b.id === "number" && typeof b.na === "string" && Array.isArray(b.demandes) &&
+    b.demandes.every(d => d && Array.isArray(d.agents)));
+}
+
+// Recharge les données depuis un fichier de sauvegarde choisi par l'utilisateur
+function restaurer(fichier) {
+  if (!fichier) return;
+  const lecteur = new FileReader();
+  lecteur.onload = () => {
+    let contenu = null;
+    try { contenu = JSON.parse(lecteur.result); } catch (e) {}
+    const liste = contenu && (Array.isArray(contenu) ? contenu : contenu.bordereaux);
+    if (!sauvegardeValide(liste)) { alert("Ce fichier n'est pas une sauvegarde GeCo valide."); return; }
+    if (!confirm("Remplacer les " + bordereaux.length + " bordereau(x) actuel(s) par les " + liste.length +
+                 " du fichier ?\nCette action est irréversible : pensez à faire une sauvegarde avant.")) return;
+    bordereaux = liste.map(migrerParaphe);
+    sauverLocal();
+    if (contenu && typeof contenu.dernier === "number") sauverCompteur(contenu.dernier);
+    selection.clear();
     afficherListe();
-  }, e => erreurCloud(e)));
-
-  desabonnements.push(db.collection("meta").doc("compteur").onSnapshot(doc => {
-    dernierCloud = doc.exists && typeof doc.data().dernier === "number" ? doc.data().dernier : null;
-  }, () => {}));
+    alert("Sauvegarde restaurée : " + bordereaux.length + " bordereau(x).");
+  };
+  lecteur.readAsText(fichier);
+  document.getElementById("fichier-restauration").value = "";   // permet de rechoisir le même fichier
 }
 
-// Première connexion : propose d'envoyer vers le stockage partagé les données déjà saisies sur cet appareil
-function proposerMigration(cloudVide) {
-  if (!cloudVide) return;
-  let locales = [];
-  try { locales = JSON.parse(localStorage.getItem("geco_bordereaux") || "[]"); } catch (e) {}
-  if (!locales.length || localStorage.getItem("geco_migre")) return;
-  if (!confirm("Cet appareil contient " + locales.length + " bordereau(x) enregistré(s) localement.\n" +
-               "Les envoyer vers le stockage partagé (pour les retrouver sur tous les appareils) ?")) return;
-  for (let i = 0; i < locales.length; i += 400) {
-    const lot = db.batch();
-    locales.slice(i, i + 400).forEach(b => lot.set(db.collection("bordereaux").doc(String(b.id)), b));
-    lot.commit().catch(erreurCloud);
-  }
-  const dernierLocal = parseInt(localStorage.getItem("geco_dernier_na"), 10);
-  if (!isNaN(dernierLocal)) sauverCompteur(dernierLocal);
-  localStorage.setItem("geco_migre", "1");
-}
-
-/* ============ 13. DÉMARRAGE ============ */
+/* ============ 12. DÉMARRAGE ============ */
 
 document.getElementById("btn-divisions").innerHTML = DIVISIONS.map((d, i) =>
   "<button class='div' id='btn-div-" + i + "' style='--c:" + COULEURS_DIV[i] + "' onclick='voirListe(DIVISIONS[" + i + "])'>" + d + "</button>"
@@ -741,17 +664,14 @@ document.getElementById("f-division").innerHTML =
   DIVISIONS.map(d => "<option>" + d + "</option>").join("");
 
 const badge = document.getElementById("badge-mode");
-badge.textContent = CLOUD ? "☁ Données partagées" : "💾 Données sur cet appareil";
-badge.className = "badge-mode " + (CLOUD ? "ok" : "local");
+badge.textContent = "💾 Données sur cet appareil";
+badge.className = "badge-mode local";
 
 afficherAgents();
 afficherDemandes();
 afficherListe();
 
-if (CLOUD) {
-  initCloud();
-} else {
-  etatLogin("● Mode local : les données restent sur cet appareil", "local");
-  try { if (sessionStorage.getItem("geco_session") === "ok") document.body.classList.add("connecte"); } catch (e) {}
-}
+etatLogin("● Les données restent sur cet appareil", "local");
+try { if (sessionStorage.getItem("geco_session") === "ok") document.body.classList.add("connecte"); } catch (e) {}
+majInfoSauvegarde();
 if (!document.body.classList.contains("connecte")) document.getElementById("l-mdp").focus();
