@@ -48,11 +48,13 @@ const RESPONSABLES = [
   { nom: "Mme Viviane",    division: "SOLDE" },
   { nom: "Mme Olivia",     division: "SOLDE" },
   { nom: "Mme Irène",      division: "SECOURS AUX DECES" },
-  { nom: "Mr John",        division: "PENSIONS" },
+  { nom: "Mr Jaona",        division: "PENSIONS" },
   { nom: "Mr Sitraka",     division: "PENSIONS" },
   { nom: "Mr Herizo",      division: "PENSIONS" },
   { nom: "Mme Fara",       division: "VISA" },
-  { nom: "Chef de service", division: "CHEF DE SERVICE" }
+  { nom: "Chef de service", division: "CHEF DE SERVICE" },
+  { nom: "Mme Manantena", division: "PENSIONS" },
+  { nom: "Mme Rollandina", division: "PENSIONS" }
 ];
 
 /* ============ 2. ÉTAT ET STOCKAGE ============ */
