@@ -27,7 +27,7 @@ const DEMANDES = [
   "REGULARISATION","REMANDATEMENT","RENOUVELLEMENT DE CONTRAT","REVERSION ON",
   "REVERSION ORPHELIN","REVERSION VEUF/VEUVE","REVISION BONIFICATION",
   "REVISION INDICE","REVISION MPE","REVISION PENSION","REVISION POURCENTAGE",
-  "SECOURS AUX DECES","TITULARISATION","VALIDATION","VIREMENT BANCAIRE"
+  "SECOURS AUX DECES","TITULARISATION","VALIDATION","VIREMENT BANCAIRE","AVANCEMENT"
 ];
 
 // Demandes pour lesquelles Nom + IM sont facultatifs
@@ -48,11 +48,11 @@ const RESPONSABLES = [
   { nom: "Mme Viviane",    division: "SOLDE" },
   { nom: "Mme Olivia",     division: "SOLDE" },
   { nom: "Mme Irène",      division: "SECOURS AUX DECES" },
-  { nom: "Mr Jaona",        division: "PENSIONS" },
+  { nom: "Mr John",        division: "PENSIONS" },
   { nom: "Mr Sitraka",     division: "PENSIONS" },
   { nom: "Mr Herizo",      division: "PENSIONS" },
   { nom: "Mme Fara",       division: "VISA" },
-  { nom: "Chef de service", division: "CHEF DE SERVICE" },
+  { nom: "Chef de service", division: "CHEF DE SERVICE" }
   { nom: "Mme Manantena", division: "PENSIONS" },
   { nom: "Mme Rollandina", division: "PENSIONS" }
 ];
@@ -601,60 +601,6 @@ function seConnecter() {
   }
 }
 
-/* ============ 11b. SAUVEGARDE SUR LE DISQUE DE L'ORDINATEUR ============ */
-
-function majInfoSauvegarde() {
-  let d = null;
-  try { d = localStorage.getItem("geco_derniere_sauvegarde"); } catch (e) {}
-  document.getElementById("info-sauvegarde").textContent =
-    d ? "Dernière sauvegarde : " + dateFr(d) : "Aucune sauvegarde faite sur ce navigateur";
-}
-
-// Enregistre tous les bordereaux dans un fichier .json (dossier Téléchargements)
-function sauvegarder() {
-  const aujourdhui = new Date().toISOString().slice(0, 10);
-  const contenu = JSON.stringify({
-    application: "GeCo SRSP", date: aujourdhui, dernier: dernierNumero(), bordereaux: bordereaux
-  }, null, 2);
-  const lien = document.createElement("a");
-  lien.href = URL.createObjectURL(new Blob([contenu], { type: "application/json" }));
-  lien.download = "geco-sauvegarde-" + aujourdhui + ".json";
-  document.body.appendChild(lien);
-  lien.click();
-  lien.remove();
-  setTimeout(() => URL.revokeObjectURL(lien.href), 2000);
-  try { localStorage.setItem("geco_derniere_sauvegarde", aujourdhui); } catch (e) {}
-  majInfoSauvegarde();
-}
-
-function sauvegardeValide(liste) {
-  return Array.isArray(liste) && liste.every(b =>
-    b && typeof b.id === "number" && typeof b.na === "string" && Array.isArray(b.demandes) &&
-    b.demandes.every(d => d && Array.isArray(d.agents)));
-}
-
-// Recharge les données depuis un fichier de sauvegarde choisi par l'utilisateur
-function restaurer(fichier) {
-  if (!fichier) return;
-  const lecteur = new FileReader();
-  lecteur.onload = () => {
-    let contenu = null;
-    try { contenu = JSON.parse(lecteur.result); } catch (e) {}
-    const liste = contenu && (Array.isArray(contenu) ? contenu : contenu.bordereaux);
-    if (!sauvegardeValide(liste)) { alert("Ce fichier n'est pas une sauvegarde GeCo valide."); return; }
-    if (!confirm("Remplacer les " + bordereaux.length + " bordereau(x) actuel(s) par les " + liste.length +
-                 " du fichier ?\nCette action est irréversible : pensez à faire une sauvegarde avant.")) return;
-    bordereaux = liste.map(migrerParaphe);
-    sauverLocal();
-    if (contenu && typeof contenu.dernier === "number") sauverCompteur(contenu.dernier);
-    selection.clear();
-    afficherListe();
-    alert("Sauvegarde restaurée : " + bordereaux.length + " bordereau(x).");
-  };
-  lecteur.readAsText(fichier);
-  document.getElementById("fichier-restauration").value = "";   // permet de rechoisir le même fichier
-}
-
 /* ============ 12. DÉMARRAGE ============ */
 
 document.getElementById("btn-divisions").innerHTML = DIVISIONS.map((d, i) =>
@@ -675,5 +621,4 @@ afficherListe();
 
 etatLogin("● Les données restent sur cet appareil", "local");
 try { if (sessionStorage.getItem("geco_session") === "ok") document.body.classList.add("connecte"); } catch (e) {}
-majInfoSauvegarde();
 if (!document.body.classList.contains("connecte")) document.getElementById("l-mdp").focus();
